@@ -1,10 +1,7 @@
-# Delete the old file
-rm -f api/app.py
-
-# Create a clean, working version
 cat > api/app.py << 'EOF'
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -56,7 +53,6 @@ async def health_check():
 
 @app.post("/api/analyze")
 async def analyze_incident(request: AnalyzeRequest):
-    # Validate tenant
     if request.tenant_id not in tenants:
         raise HTTPException(status_code=401, detail="Invalid tenant")
     if request.api_key not in tenants[request.tenant_id]["api_keys"]:
@@ -65,7 +61,6 @@ async def analyze_incident(request: AnalyzeRequest):
     logs = request.alert.logs.lower()
     service = request.alert.service
     
-    # Analyze based on log patterns
     if "database" in logs or "connection pool" in logs:
         root_cause = "Database connection pool exhaustion"
         confidence = 0.85
@@ -87,7 +82,6 @@ async def analyze_incident(request: AnalyzeRequest):
         remediation = ["Collect full logs", "Check dependencies", "Review changes"]
         severity = "medium"
     
-    # Store incident
     incident = {
         "id": f"inc-{int(datetime.now().timestamp())}",
         "service": service,
@@ -125,7 +119,6 @@ async def get_incidents(tenant_id: str, api_key: str, limit: int = 50):
         "incidents": incidents
     }
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# This is the handler for Vercel
+handler = Mangum(app)
 EOF
