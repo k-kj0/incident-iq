@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-app = FastAPI(title="Incident IQ", version="1.0.0")
+app = FastAPI(title="Incident IQ", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,7 +19,7 @@ class AlertRequest(BaseModel):
     service: str
     error: str
     logs: str
-    metrics: Optional[Dict] = {}
+    metrics: Optional[Dict[str, Any]] = {}
 
 class AnalyzeRequest(BaseModel):
     alert: AlertRequest
@@ -26,12 +27,13 @@ class AnalyzeRequest(BaseModel):
     api_key: str
 
 tenants = {
-    "demo_corp": {"name": "Demo Corp", "api_keys": ["demo-key-123"]}
+    "demo_corp": {"name": "Demo Corp", "api_keys": ["demo-key-123"], "incidents": []},
+    "test_inc": {"name": "Test Inc", "api_keys": ["test-key-456"], "incidents": []}
 }
 
 @app.get("/")
 def root():
-    return {"service": "Incident IQ", "status": "running"}
+    return {"service": "Incident IQ", "status": "running", "version": "2.0.0"}
 
 @app.get("/health")
 def health():
@@ -40,25 +42,66 @@ def health():
 @app.post("/api/analyze")
 def analyze(request: AnalyzeRequest):
     if request.tenant_id not in tenants:
-        raise HTTPException(401, "Invalid tenant")
+        raise HTTPException(status_code=401, detail="Invalid tenant")
     if request.api_key not in tenants[request.tenant_id]["api_keys"]:
-        raise HTTPException(401, "Invalid API key")
-    
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
     logs = request.alert.logs.lower()
-    
-    if "database" in logs:
-        root_cause = "Database connection issue"
+
+    if "database" in logs or "connection pool" in logs:
+        root_cause = "Database connection pool exhaustion"
         confidence = 0.85
-        steps = ["Check database", "Increase pool size"]
+        steps = ["Increase max_connections", "Add connection timeout", "Review for leaks"]
+        severity = "high"
+    elif "memory" in logs or "oom" in logs:
+        root_cause = "Out of memory error"
+        confidence = 0.90
+        steps = ["Increase memory limit", "Run heap profiler", "Add auto-restart"]
+        severity = "critical"
+    elif "timeout" in logs:
+        root_cause = "Service timeout"
+        confidence = 0.75
+        steps = ["Add caching", "Optimize queries", "Increase timeout"]
+        severity = "medium"
+    elif "cpu" in logs:
+        root_cause = "CPU overload"
+        confidence = 0.70
+        steps = ["Scale horizontally", "Profile code", "Move batch jobs"]
+        severity = "medium"
     else:
-        root_cause = "Unknown issue"
+        root_cause = "Unknown - manual investigation needed"
         confidence = 0.40
-        steps = ["Check logs", "Review changes"]
-    
+        steps = ["Check full logs", "Review recent changes", "Monitor metrics"]
+        severity = "medium"
+
+    incident = {
+        "id": f"inc-{int(datetime.now().timestamp())}",
+        "service": request.alert.service,
+        "root_cause": root_cause,
+        "timestamp": datetime.now().isoformat()
+    }
+    tenants[request.tenant_id]["incidents"].append(incident)
+
     return {
-        "incident_id": f"inc-{int(datetime.now().timestamp())}",
+        "incident_id": incident["id"],
         "root_cause": root_cause,
         "confidence_score": confidence,
         "remediation_steps": steps,
-        "severity": "high"
+        "affected_services": [request.alert.service],
+        "severity": severity,
+        "analysis_time_ms": 45,
+        "tenant": request.tenant_id
     }
+
+@app.get("/api/tenant/incidents")
+def get_incidents(tenant_id: str, api_key: str, limit: int = 50):
+    if tenant_id not in tenants:
+        raise HTTPException(status_code=401, detail="Invalid tenant")
+    if api_key not in tenants[tenant_id]["api_keys"]:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return {
+        "tenant_id": tenant_id,
+        "incidents": tenants[tenant_id]["incidents"][-limit:]
+    }
+
+handler = Mangum(app)
