@@ -1,3 +1,9 @@
+cat > adapters/multi_tenant.py << 'EOF'
+"""
+Multi-tenant management with complete data isolation between customers.
+No external dependencies required.
+"""
+
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -20,8 +26,10 @@ class TenantManager:
     """
     Multi-tenant manager ensuring complete data isolation between customers.
     
-    This follows the pattern used by SaaS platforms like Incident IQ where
-    each customer sees ONLY their own data, even in shared dashboards [citation:2][citation:7].
+    Each tenant has:
+    - Unique API keys for authentication
+    - Isolated incident storage (no cross-tenant access)
+    - Separate usage metrics for billing
     """
     
     def __init__(self):
@@ -44,7 +52,7 @@ class TenantManager:
         self.tenants[tenant_id] = TenantContext(
             tenant_id=tenant_id,
             name=name,
-            plan=plan,
+           plan=plan,
             api_keys=[api_key]
         )
         
@@ -90,6 +98,10 @@ class TenantManager:
         
         self.tenant_data[tenant_id]["incidents"].append(incident_record)
         
+        # Keep only last 500 incidents per tenant
+        if len(self.tenant_data[tenant_id]["incidents"]) > 500:
+            self.tenant_data[tenant_id]["incidents"] = self.tenant_data[tenant_id]["incidents"][-500:]
+        
         return incident_id
     
     def get_tenant_incidents(
@@ -119,7 +131,7 @@ class TenantManager:
             "plan": context.plan,
             "total_requests": context.request_count,
             "total_tokens": context.total_tokens,
-            "estimated_cost_usd": context.total_tokens * 0.000001,  # $0.001 per 1k tokens
+            "estimated_cost_usd": round(context.total_tokens * 0.000001, 4),
             "period_start": datetime.now().replace(day=1).isoformat(),
             "period_end": datetime.now().isoformat()
         }
@@ -141,11 +153,18 @@ class TenantAwareRAG:
         if tenant_id not in self.tenant_vectors:
             self.tenant_vectors[tenant_id] = []
         
-        # Store with tenant isolation
+        # Create simple keyword-based index
+        keywords = self._extract_keywords(incident.get("data", {}).get("alert", {}).get("logs", ""))
+        
         self.tenant_vectors[tenant_id].append({
-            "embedding": self._simple_hash_embedding(incident.get("root_cause", "")),
-            "data": incident
+            "keywords": keywords,
+            "data": incident,
+            "timestamp": datetime.now().isoformat()
         })
+        
+        # Keep only last 200
+        if len(self.tenant_vectors[tenant_id]) > 200:
+            self.tenant_vectors[tenant_id] = self.tenant_vectors[tenant_id][-200:]
     
     def find_similar_incidents(
         self, 
@@ -160,33 +179,32 @@ class TenantAwareRAG:
         if tenant_id not in self.tenant_vectors:
             return []
         
-        current_hash = self._simple_hash_embedding(
-            current_incident.get("error", "") + current_incident.get("logs", "")
-        )
+        current_logs = current_incident.get("logs", "").lower()
+        current_keywords = self._extract_keywords(current_logs)
         
         # Search only within this tenant's vectors
         candidates = []
         for stored in self.tenant_vectors[tenant_id]:
-            similarity = self._cosine_similarity(
-                current_hash, 
-                stored["embedding"]
-            )
-            candidates.append((similarity, stored["data"]))
+            # Simple keyword overlap scoring
+            overlap = len(set(current_keywords) & set(stored["keywords"]))
+            if overlap > 0:
+                candidates.append((overlap, stored["data"]))
         
-        # Sort by similarity and return top_k
+        # Sort by overlap and return top_k
         candidates.sort(key=lambda x: x[0], reverse=True)
         return [c[1] for c in candidates[:top_k]]
     
-    def _simple_hash_embedding(self, text: str) -> List[float]:
-        """Simplified embedding - in production use proper embeddings"""
-        import hashlib
-        hash_obj = hashlib.md5(text.encode())
-        hash_bytes = hash_obj.digest()
-        return [float(b) / 255.0 for b in hash_bytes[:32]]
-    
-    def _cosine_similarity(self, a: List[float], b: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = sum(x * x for x in a) ** 0.5
-        norm_b = sum(y * y for y in b) ** 0.5
-        return dot / (norm_a * norm_b + 1e-8)
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Extract simple keywords from text"""
+        # Common error keywords
+        keywords = set()
+        error_keywords = ["database", "timeout", "memory", "cpu", "disk", "network", 
+                         "connection", "api", "gateway", "error", "failed", "crash"]
+        
+        text_lower = text.lower()
+        for kw in error_keywords:
+            if kw in text_lower:
+                keywords.add(kw)
+        
+        return list(keywords)
+EOF
