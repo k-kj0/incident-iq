@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from mangum import Mangum
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import os
 
 app = FastAPI(title="Incident IQ", version="2.0.0")
 
@@ -39,6 +41,13 @@ def root():
 def health():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.get("/dashboard")
+def dashboard():
+    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public", "index.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
+    return {"error": "Dashboard not found - make sure public/index.html exists"}
+
 @app.post("/api/analyze")
 def analyze(request: AnalyzeRequest):
     if request.tenant_id not in tenants:
@@ -68,6 +77,16 @@ def analyze(request: AnalyzeRequest):
         confidence = 0.70
         steps = ["Scale horizontally", "Profile code", "Move batch jobs"]
         severity = "medium"
+    elif "disk" in logs or "storage" in logs:
+        root_cause = "Disk space exhaustion"
+        confidence = 0.80
+        steps = ["Clean old logs", "Add disk monitoring", "Increase storage"]
+        severity = "high"
+    elif "network" in logs or "connection refused" in logs:
+        root_cause = "Network connectivity failure"
+        confidence = 0.75
+        steps = ["Check firewall rules", "Verify DNS", "Test with ping/telnet"]
+        severity = "high"
     else:
         root_cause = "Unknown - manual investigation needed"
         confidence = 0.40
@@ -78,6 +97,8 @@ def analyze(request: AnalyzeRequest):
         "id": f"inc-{int(datetime.now().timestamp())}",
         "service": request.alert.service,
         "root_cause": root_cause,
+        "confidence": confidence,
+        "severity": severity,
         "timestamp": datetime.now().isoformat()
     }
     tenants[request.tenant_id]["incidents"].append(incident)
