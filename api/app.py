@@ -35,6 +35,9 @@ tenants = {
 
 @app.get("/")
 def root():
+    html_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public", "index.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path)
     return {"service": "Incident IQ", "status": "running", "version": "2.0.0"}
 
 @app.get("/health")
