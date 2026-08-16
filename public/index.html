@@ -32,7 +32,6 @@
     overflow-x: hidden;
   }
 
-  /* ===== ANIMATED BACKGROUND ===== */
   .bg-canvas {
     position: fixed;
     inset: 0;
@@ -41,7 +40,6 @@
     overflow: hidden;
   }
 
-  /* Grid */
   .bg-canvas::before {
     content: '';
     position: absolute;
@@ -58,7 +56,6 @@
     100% { background-position: 40px 40px; }
   }
 
-  /* Scan line */
   .bg-canvas::after {
     content: '';
     position: absolute;
@@ -75,7 +72,6 @@
     100% { top: 100%; opacity: 0; }
   }
 
-  /* Ambient orbs */
   .glow-orb {
     position: fixed;
     border-radius: 50%;
@@ -109,7 +105,6 @@
     66% { transform: translate(-20px, 15px) scale(0.95); }
   }
 
-  /* ===== FLOATING PARTICLES ===== */
   .particle-field {
     position: fixed;
     inset: 0;
@@ -131,7 +126,6 @@
     100% { opacity: 0; transform: translateY(-50px) translateX(var(--drift)) scale(1); }
   }
 
-  /* ===== HEADER ===== */
   header {
     position: relative;
     z-index: 10;
@@ -194,7 +188,6 @@
     50% { opacity: 0.5; transform: scale(1.3); }
   }
 
-  /* ===== MAIN ===== */
   main {
     position: relative;
     z-index: 10;
@@ -203,7 +196,6 @@
     padding: 40px 20px;
   }
 
-  /* ===== HERO with ROBOT ===== */
   .hero-section {
     display: grid;
     grid-template-columns: 1fr auto;
@@ -259,7 +251,6 @@
     font-weight: 400;
   }
 
-  /* ===== ROBOT ===== */
   .robot-wrapper {
     position: relative;
     width: 180px;
@@ -284,13 +275,11 @@
     filter: drop-shadow(0 0 40px rgba(0,229,255,0.5));
   }
 
-  /* Robot eye tracking group */
   #robot-eyes-group {
     transition: transform 0.15s ease-out;
     transform-origin: 90px 80px;
   }
 
-  /* thinking ring animation */
   .robot-ring {
     position: absolute;
     border-radius: 50%;
@@ -309,7 +298,6 @@
     100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
   }
 
-  /* Analyzing state for robot */
   .robot-wrapper.analyzing .robot-svg {
     filter: drop-shadow(0 0 40px rgba(168,85,247,0.6)) drop-shadow(0 0 20px rgba(0,229,255,0.4));
     animation: robotAnalyze 0.3s ease-in-out infinite alternate;
@@ -320,7 +308,6 @@
     to { transform: scale(1.03); }
   }
 
-  /* ===== STATS ===== */
   .stats-row {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -373,7 +360,6 @@
     letter-spacing: 1px;
   }
 
-  /* ===== PANELS ===== */
   .panel-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -431,7 +417,6 @@
 
   .panel-body { padding: 24px; }
 
-  /* ===== FORM ===== */
   .form-group { margin-bottom: 16px; }
 
   label {
@@ -465,7 +450,6 @@
   textarea { resize: vertical; min-height: 80px; }
   select option { background: var(--surface2); }
 
-  /* Tenant pills */
   .tenant-pills { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .tenant-pill {
@@ -486,7 +470,6 @@
     background: rgba(0,229,255,0.08);
   }
 
-  /* Analyze button */
   .btn-analyze {
     width: 100%;
     padding: 14px;
@@ -529,7 +512,6 @@
   .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   .btn-analyze:disabled::before { display: none; }
 
-  /* Spinner */
   .spinner {
     width: 16px; height: 16px;
     border: 2px solid rgba(0,0,0,0.3);
@@ -540,7 +522,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ===== RESULT PANEL ===== */
   .result-empty {
     text-align: center;
     padding: 48px 24px;
@@ -563,7 +544,6 @@
     animation: fadeUp 0.4s ease both;
   }
 
-  /* Severity badge */
   .severity-badge {
     display: inline-flex;
     align-items: center;
@@ -582,7 +562,6 @@
   .severity-medium { background: rgba(255,214,10,0.1); color: var(--yellow); border: 1px solid rgba(255,214,10,0.25); }
   .severity-low { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
 
-  /* Confidence bar */
   .confidence-row {
     display: flex;
     align-items: center;
@@ -640,7 +619,6 @@
     text-align: right;
   }
 
-  /* Root cause */
   .root-cause-box {
     background: rgba(0,229,255,0.05);
     border: 1px solid rgba(0,229,255,0.15);
@@ -676,7 +654,6 @@
     line-height: 1.4;
   }
 
-  /* Steps */
   .steps-title {
     font-family: var(--font-mono);
     font-size: 10px;
@@ -727,7 +704,6 @@
 
   .step-text { font-size: 13px; color: var(--text); line-height: 1.4; }
 
-  /* Meta row */
   .meta-row {
     display: flex;
     gap: 12px;
@@ -751,7 +727,6 @@
 
   .meta-chip:hover { border-color: rgba(0,229,255,0.3); color: var(--text); }
 
-  /* History */
   .history-panel { grid-column: 1 / -1; }
 
   .incident-list { list-style: none; }
@@ -787,7 +762,6 @@
     font-size: 12px;
   }
 
-  /* Presets */
   .presets-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 
   .preset-btn {
@@ -809,7 +783,6 @@
     transform: translateY(-1px);
   }
 
-  /* Toast */
   .toast {
     position: fixed;
     bottom: 24px;
@@ -831,7 +804,6 @@
   .toast.success { border-color: rgba(0,255,136,0.4); color: var(--green); }
   .toast.error { border-color: rgba(255,61,113,0.4); color: var(--accent2); }
 
-  /* Endpoint row */
   .endpoint-row {
     background: var(--surface2);
     border: 1px solid var(--border);
@@ -862,7 +834,6 @@
 
   .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* ===== FLOATING DATA BITS ===== */
   .data-bit {
     position: fixed;
     font-family: var(--font-mono);
@@ -881,12 +852,10 @@
     100% { opacity: 0; transform: translateY(-60px); }
   }
 
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-  /* ===== RESULT reveal animation ===== */
   #resultCard.revealed .root-cause-box {
     animation: revealBox 0.5s ease both;
   }
@@ -899,7 +868,6 @@
 </head>
 <body>
 
-<!-- Background layers -->
 <div class="bg-canvas"></div>
 <div class="glow-orb glow-orb-1"></div>
 <div class="glow-orb glow-orb-2"></div>
@@ -922,7 +890,6 @@
 
 <main>
 
-  <!-- Hero with Robot -->
   <div class="hero-section hero">
     <div class="hero-text">
       <div class="hero-tag">🧠 AI Root Cause Analysis</div>
@@ -930,62 +897,47 @@
       <p>Drop in your logs. Get the root cause, confidence score, and exact remediation steps — instantly.</p>
     </div>
 
-    <!-- Robot -->
     <div class="robot-wrapper" id="robotWrapper">
       <div class="robot-ring"></div>
       <div class="robot-ring"></div>
       <div class="robot-ring"></div>
       <svg class="robot-svg" id="robotSvg" viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
-        <!-- Antenna -->
         <line x1="90" y1="10" x2="90" y2="32" stroke="#00e5ff" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
         <circle cx="90" cy="8" r="5" fill="#00e5ff" opacity="0.9">
           <animate attributeName="r" values="5;7;5" dur="2s" repeatCount="indefinite"/>
           <animate attributeName="opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite"/>
         </circle>
 
-        <!-- Head body -->
         <rect x="38" y="32" width="104" height="84" rx="18" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
-        <!-- Head sheen -->
         <rect x="42" y="36" width="96" height="72" rx="14" fill="url(#headGrad)" opacity="0.6"/>
 
-        <!-- Screen face -->
         <rect x="50" y="44" width="80" height="60" rx="10" fill="#050810" stroke="#00e5ff" stroke-width="1" opacity="0.8"/>
-        <!-- Screen glow -->
         <rect x="50" y="44" width="80" height="60" rx="10" fill="none" stroke="#00e5ff" stroke-width="0.5" opacity="0.3">
           <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite"/>
         </rect>
 
-        <!-- Eyes group — this entire group shifts for left/right tracking -->
         <g id="robot-eyes-group">
-          <!-- Left eye -->
           <circle cx="72" cy="68" r="11" fill="#0c1120" stroke="#00e5ff" stroke-width="1.2" opacity="0.9"/>
           <circle id="pupilLeft" cx="72" cy="68" r="6" fill="#00e5ff" opacity="0.9"/>
           <circle id="pupilLeftGlow" cx="72" cy="68" r="3" fill="white" opacity="0.6"/>
 
-          <!-- Right eye -->
           <circle cx="108" cy="68" r="11" fill="#0c1120" stroke="#00e5ff" stroke-width="1.2" opacity="0.9"/>
           <circle id="pupilRight" cx="108" cy="68" r="6" fill="#00e5ff" opacity="0.9"/>
           <circle id="pupilRightGlow" cx="108" cy="68" r="3" fill="white" opacity="0.6"/>
 
-          <!-- Mouth / status bar -->
           <rect x="62" y="88" width="56" height="6" rx="3" fill="#1e2d4a"/>
           <rect id="mouthBar" x="62" y="88" width="30" height="6" rx="3" fill="#00e5ff" opacity="0.7">
             <animate id="mouthAnim" attributeName="width" values="20;50;20" dur="3s" repeatCount="indefinite"/>
           </rect>
         </g>
 
-        <!-- Neck -->
         <rect x="80" y="116" width="20" height="12" rx="4" fill="#1e2d4a"/>
 
-        <!-- Body -->
         <rect x="28" y="128" width="124" height="72" rx="16" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
-        <!-- Body sheen -->
         <rect x="32" y="132" width="116" height="60" rx="12" fill="url(#bodyGrad)" opacity="0.4"/>
 
-        <!-- Chest panel -->
         <rect x="50" y="140" width="80" height="48" rx="8" fill="#050810" stroke="#1e2d4a" stroke-width="1"/>
 
-        <!-- Chest indicators -->
         <circle cx="66" cy="155" r="5" fill="#00ff88" opacity="0.8">
           <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite"/>
         </circle>
@@ -999,7 +951,6 @@
           <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.4s" repeatCount="indefinite"/>
         </circle>
 
-        <!-- Chest data lines -->
         <rect x="58" y="170" width="64" height="3" rx="2" fill="#1e2d4a"/>
         <rect x="58" y="170" width="40" height="3" rx="2" fill="#00e5ff" opacity="0.5">
           <animate attributeName="width" values="20;60;20" dur="4s" repeatCount="indefinite"/>
@@ -1009,15 +960,12 @@
           <animate attributeName="width" values="40;64;40" dur="3.5s" repeatCount="indefinite"/>
         </rect>
 
-        <!-- Arms -->
         <rect x="4" y="130" width="20" height="50" rx="10" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
         <rect x="156" y="130" width="20" height="50" rx="10" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
 
-        <!-- Hands -->
         <circle cx="14" cy="186" r="9" fill="#111827" stroke="#1e2d4a" stroke-width="1.5"/>
         <circle cx="166" cy="186" r="9" fill="#111827" stroke="#1e2d4a" stroke-width="1.5"/>
 
-        <!-- Feet -->
         <rect x="42" y="200" width="36" height="16" rx="8" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
         <rect x="102" y="200" width="36" height="16" rx="8" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
 
@@ -1035,7 +983,6 @@
     </div>
   </div>
 
-  <!-- Stats -->
   <div class="stats-row" id="statsRow">
     <div class="stat-card">
       <div class="stat-value" id="statTotal">0</div>
@@ -1053,7 +1000,6 @@
 
   <div class="panel-grid">
 
-    <!-- Input Panel -->
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title">🔍 Analyze Incident</div>
@@ -1105,7 +1051,6 @@
       </div>
     </div>
 
-    <!-- Result Panel -->
     <div class="panel">
       <div class="panel-header">
         <div class="panel-title">📊 Analysis Result</div>
@@ -1140,7 +1085,6 @@
       </div>
     </div>
 
-    <!-- History Panel -->
     <div class="panel history-panel">
       <div class="panel-header">
         <div class="panel-title">📋 Incident History</div>
@@ -1158,12 +1102,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  // ============================================================
-  // ORIGINAL FUNCTIONAL CODE — UNTOUCHED
-  // ============================================================
-  const API_BASE = window.location.hostname.includes('vercel.app')
-    ? ''
-    : 'https://incident-1ah60kc6w-kavyakjais-6296s-projects.vercel.app';
+  const API_BASE = '';
 
   let currentTenant = 'demo_corp';
   let currentApiKey = 'demo-key-123';
@@ -1238,7 +1177,6 @@
     document.getElementById('btnSpinner').style.display = 'block';
     document.getElementById('btnText').textContent = 'Analyzing...';
 
-    // Robot analyzing mode
     document.getElementById('robotWrapper').classList.add('analyzing');
     setRobotThinking(true);
 
@@ -1374,17 +1312,12 @@
   loadHistory();
   setInterval(checkStatus, 30000);
 
-  // ============================================================
-  // ROBOT MOUSE TRACKING
-  // ============================================================
   const eyesGroup = document.getElementById('robot-eyes-group');
   const robotSvg = document.getElementById('robotSvg');
   const robotWrapper = document.getElementById('robotWrapper');
 
-  // Eye travel limits (pixels relative to natural center)
   const MAX_EYE_X = 4;
   const MAX_EYE_Y = 3;
-  // Head tilt limit (degrees)
   const MAX_HEAD_TILT = 18;
 
   let targetEyeX = 0, targetEyeY = 0;
@@ -1401,29 +1334,23 @@
     const dy = e.clientY - robotCY;
     const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-    // Normalised direction
     const nx = dx / dist;
     const ny = dy / dist;
 
-    // Clamp eye shift
     const strength = Math.min(dist / 300, 1);
     targetEyeX = nx * MAX_EYE_X * strength;
     targetEyeY = ny * MAX_EYE_Y * strength;
 
-    // Head slight tilt based on horizontal position
     const vw = window.innerWidth;
-    const normX = (e.clientX / vw) * 2 - 1; // -1 to 1
+    const normX = (e.clientX / vw) * 2 - 1;
     targetTilt = normX * MAX_HEAD_TILT;
   });
 
   function animateRobot() {
-    // Lerp eyes
     currentEyeX += (targetEyeX - currentEyeX) * 0.12;
     currentEyeY += (targetEyeY - currentEyeY) * 0.12;
     currentTilt += (targetTilt - currentTilt) * 0.06;
 
-    // Apply eye transform (translate pupils inside eye sockets)
-    // Left pupil: natural center (72, 68), right (108, 68)
     const pleft = document.getElementById('pupilLeft');
     const pleftG = document.getElementById('pupilLeftGlow');
     const pright = document.getElementById('pupilRight');
@@ -1446,7 +1373,6 @@
       prightG.setAttribute('cy', 68 + currentEyeY - 1.5);
     }
 
-    // Head tilt (CSS transform on the SVG)
     robotSvg.style.transform = `rotate(${currentTilt * 0.4}deg)`;
 
     rafId = requestAnimationFrame(animateRobot);
@@ -1454,7 +1380,6 @@
 
   animateRobot();
 
-  // Thinking / analyzing animation — makes eyes spin colour
   function setRobotThinking(on) {
     const pl = document.getElementById('pupilLeft');
     const pr = document.getElementById('pupilRight');
@@ -1467,9 +1392,6 @@
     }
   }
 
-  // ============================================================
-  // FLOATING PARTICLES
-  // ============================================================
   const particleField = document.getElementById('particleField');
   const PARTICLE_COUNT = 30;
   const PARTICLE_COLORS = ['#00e5ff', '#a855f7', '#ff3d71', '#00ff88', '#ffd60a'];
@@ -1508,7 +1430,6 @@
 
     particleField.appendChild(p);
 
-    // Respawn after animation ends
     setTimeout(() => {
       p.remove();
       spawnParticle();
