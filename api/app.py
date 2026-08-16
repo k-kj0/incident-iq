@@ -900,7 +900,6 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="logo-text">Incident<span>IQ</span></div>
   </div>
   <div style="display:flex; align-items:center; gap:16px;">
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Powered by NVIDIA Nemotron</div>
     <div class="status-pill" id="apiStatus">
       <div class="status-dot"></div>
       <span>Checking...</span>
@@ -1505,10 +1504,10 @@ class IncidentAnalysis:
     reasoning_trace: List[str]
 
 
-class NemotronReasoningEngine:
+class IncidentReasoningEngine:
     """
     Rule-based reasoning engine used for the live demo.
-    Structured to be swapped for an actual Nemotron-backed call later
+    Rule-based pattern matcher. Structured with a reasoning_trace field so it can be swapped for a real LLM-backed classifier later without changing the response shape.
     (see reasoning_trace, which mirrors what a model's chain-of-thought
     output would look like).
     """
@@ -1603,7 +1602,7 @@ class NemotronReasoningEngine:
         )
 
 
-engine = NemotronReasoningEngine()
+engine = IncidentReasoningEngine()
 
 @app.get("/")
 def root():
