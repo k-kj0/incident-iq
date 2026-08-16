@@ -8,8 +8,6 @@ from fastapi.responses import HTMLResponse
 from mangum import Mangum
 from pydantic import BaseModel
 
-from dashboard_html import DASHBOARD_HTML
-
 app = FastAPI(title="Incident IQ", version="2.0.0")
 
 app.add_middleware(
@@ -19,6 +17,1448 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Incident IQ — AI-Powered Root Cause Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --surface: #0c1120;
+    --surface2: #111827;
+    --border: #1e2d4a;
+    --accent: #00e5ff;
+    --accent2: #ff3d71;
+    --accent3: #a855f7;
+    --green: #00ff88;
+    --yellow: #ffd60a;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .bg-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .bg-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    animation: gridShift 20s linear infinite;
+  }
+
+  @keyframes gridShift {
+    0% { background-position: 0 0; }
+    100% { background-position: 40px 40px; }
+  }
+
+  .bg-canvas::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,229,255,0.15), transparent);
+    animation: scanLine 6s linear infinite;
+  }
+
+  @keyframes scanLine {
+    0% { top: -2px; opacity: 0; }
+    5% { opacity: 1; }
+    95% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .glow-orb {
+    position: fixed;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+    filter: blur(60px);
+    animation: orbFloat 12s ease-in-out infinite;
+  }
+  .glow-orb-1 {
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(0,229,255,0.07) 0%, transparent 70%);
+    top: -250px; right: -200px;
+    animation-delay: 0s;
+  }
+  .glow-orb-2 {
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(168,85,247,0.06) 0%, transparent 70%);
+    bottom: -150px; left: -150px;
+    animation-delay: -5s;
+  }
+  .glow-orb-3 {
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(255,61,113,0.04) 0%, transparent 70%);
+    top: 40%; left: 30%;
+    animation-delay: -8s;
+  }
+
+  @keyframes orbFloat {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -20px) scale(1.05); }
+    66% { transform: translate(-20px, 15px) scale(0.95); }
+  }
+
+  .particle-field {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    animation: particleDrift linear infinite;
+    opacity: 0;
+  }
+
+  @keyframes particleDrift {
+    0% { opacity: 0; transform: translateY(100vh) translateX(0) scale(0); }
+    5% { opacity: 1; }
+    90% { opacity: 0.6; }
+    100% { opacity: 0; transform: translateY(-50px) translateX(var(--drift)) scale(1); }
+  }
+
+  header {
+    position: relative;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(12px);
+    background: rgba(5,8,16,0.85);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    animation: logoPulse 3s ease-in-out infinite;
+  }
+
+  @keyframes logoPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.3); }
+    50% { box-shadow: 0 0 0 8px rgba(0,229,255,0); }
+  }
+
+  .logo-text { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid rgba(0,255,136,0.3);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--green);
+    background: rgba(0,255,136,0.05);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  main {
+    position: relative;
+    z-index: 10;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+
+  .hero-section {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 40px;
+    padding: 50px 20px 40px;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-text { max-width: 600px; }
+
+  .hero-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .hero h1 {
+    font-size: clamp(32px, 5vw, 58px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 .highlight {
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero p {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 500px;
+    margin-bottom: 0;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  .robot-wrapper {
+    position: relative;
+    width: 180px;
+    height: 220px;
+    flex-shrink: 0;
+    animation: robotFloat 4s ease-in-out infinite;
+  }
+
+  @keyframes robotFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+
+  .robot-svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 0 24px rgba(0,229,255,0.3));
+    transition: filter 0.3s ease;
+  }
+
+  .robot-svg:hover {
+    filter: drop-shadow(0 0 40px rgba(0,229,255,0.5));
+  }
+
+  #robot-eyes-group {
+    transition: transform 0.15s ease-out;
+    transform-origin: 90px 80px;
+  }
+
+  .robot-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1.5px solid rgba(0,229,255,0.2);
+    animation: ringExpand 2.5s ease-out infinite;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .robot-ring:nth-child(1) { width: 180px; height: 180px; animation-delay: 0s; }
+  .robot-ring:nth-child(2) { width: 220px; height: 220px; animation-delay: 0.7s; }
+  .robot-ring:nth-child(3) { width: 260px; height: 260px; animation-delay: 1.4s; }
+
+  @keyframes ringExpand {
+    0% { opacity: 0.5; transform: translate(-50%, -50%) scale(0.8); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
+  }
+
+  .robot-wrapper.analyzing .robot-svg {
+    filter: drop-shadow(0 0 40px rgba(168,85,247,0.6)) drop-shadow(0 0 20px rgba(0,229,255,0.4));
+    animation: robotAnalyze 0.3s ease-in-out infinite alternate;
+  }
+
+  @keyframes robotAnalyze {
+    from { transform: scale(1); }
+    to { transform: scale(1.03); }
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+    animation: fadeUp 0.6s ease 0.1s both;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(0,229,255,0.03) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .stat-card:hover {
+    border-color: rgba(0,229,255,0.35);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px rgba(0,229,255,0.1);
+  }
+
+  .stat-card:hover::before { opacity: 1; }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    animation: fadeUp 0.6s ease 0.2s both;
+  }
+
+  @media (max-width: 768px) {
+    .panel-grid { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: 1fr; }
+    .hero-section { grid-template-columns: 1fr; }
+    .robot-wrapper { margin: 0 auto; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+    position: relative;
+  }
+
+  .panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    background: linear-gradient(135deg, rgba(0,229,255,0.02) 0%, transparent 50%);
+  }
+
+  .panel:hover::after { opacity: 1; }
+
+  .panel-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-body { padding: 24px; }
+
+  .form-group { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  input, textarea, select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,229,255,0.08);
+  }
+
+  textarea { resize: vertical; min-height: 80px; }
+  select option { background: var(--surface2); }
+
+  .tenant-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .tenant-pill {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--muted);
+    background: transparent;
+  }
+
+  .tenant-pill.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(0,229,255,0.08);
+  }
+
+  .btn-analyze {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--accent), #0099bb);
+    border: none;
+    border-radius: 10px;
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-analyze::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+  }
+
+  .btn-analyze:hover::before { left: 100%; }
+
+  .btn-analyze:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0,229,255,0.3);
+  }
+
+  .btn-analyze:active { transform: translateY(0); }
+  .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-analyze:disabled::before { display: none; }
+
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--muted);
+  }
+
+  .result-empty .empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  .result-empty p {
+    font-size: 13px;
+    font-family: var(--font-mono);
+  }
+
+  .result-card {
+    display: none;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .severity-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 100px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .severity-critical { background: rgba(255,61,113,0.15); color: var(--accent2); border: 1px solid rgba(255,61,113,0.3); }
+  .severity-high { background: rgba(255,166,0,0.12); color: #ffa600; border: 1px solid rgba(255,166,0,0.3); }
+  .severity-medium { background: rgba(255,214,10,0.1); color: var(--yellow); border: 1px solid rgba(255,214,10,0.25); }
+  .severity-low { background: rgba(0,255,136,0.1); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+
+  .confidence-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+  }
+
+  .confidence-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .confidence-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent3));
+    transition: width 1s ease;
+    width: 0%;
+    position: relative;
+  }
+
+  .confidence-fill::after {
+    content: '';
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: 20px;
+    background: rgba(255,255,255,0.4);
+    filter: blur(4px);
+    animation: shimmer 1.5s ease infinite;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+  }
+
+  .confidence-pct {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .root-cause-box {
+    background: rgba(0,229,255,0.05);
+    border: 1px solid rgba(0,229,255,0.15);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .root-cause-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: 0.4;
+  }
+
+  .root-cause-box .rc-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+  }
+
+  .root-cause-box .rc-text {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .steps-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin: 16px 0 10px;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(30,45,74,0.5);
+    animation: fadeUp 0.3s ease both;
+    transition: background 0.2s;
+  }
+
+  .step-item:hover {
+    background: rgba(0,229,255,0.03);
+    border-radius: 6px;
+    padding-left: 6px;
+  }
+
+  .step-item:last-child { border-bottom: none; }
+
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(0,229,255,0.1);
+    border: 1px solid rgba(0,229,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 1px;
+    transition: background 0.2s;
+  }
+
+  .step-item:hover .step-num {
+    background: rgba(0,229,255,0.2);
+    box-shadow: 0 0 10px rgba(0,229,255,0.2);
+  }
+
+  .step-text { font-size: 13px; color: var(--text); line-height: 1.4; }
+
+  .meta-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+
+  .meta-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    transition: border-color 0.2s;
+  }
+
+  .meta-chip:hover { border-color: rgba(0,229,255,0.3); color: var(--text); }
+
+  .history-panel { grid-column: 1 / -1; }
+
+  .incident-list { list-style: none; }
+
+  .incident-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    animation: fadeUp 0.3s ease both;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s;
+    border-radius: 8px;
+  }
+
+  .incident-item:hover {
+    background: rgba(0,229,255,0.03);
+    transform: translateX(4px);
+  }
+
+  .incident-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .incident-service { font-family: var(--font-mono); font-size: 12px; color: var(--text); font-weight: 700; }
+  .incident-cause { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .incident-time { font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .empty-history {
+    text-align: center;
+    padding: 32px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .presets-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+
+  .preset-btn {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--accent3);
+    color: var(--accent3);
+    background: rgba(168,85,247,0.06);
+    transform: translateY(-1px);
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    z-index: 100;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    max-width: 320px;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: rgba(0,255,136,0.4); color: var(--green); }
+  .toast.error { border-color: rgba(255,61,113,0.4); color: var(--accent2); }
+
+  .endpoint-row {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .endpoint-url { font-family: var(--font-mono); font-size: 11px; color: var(--muted); word-break: break-all; }
+  .endpoint-url span { color: var(--accent); }
+
+  .copy-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    margin-left: 12px;
+  }
+
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .data-bit {
+    position: fixed;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(0,229,255,0.15);
+    pointer-events: none;
+    z-index: 1;
+    animation: dataDrift linear infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes dataDrift {
+    0% { opacity: 0; transform: translateY(20px); }
+    10% { opacity: 1; }
+    90% { opacity: 0.3; }
+    100% { opacity: 0; transform: translateY(-60px); }
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  #resultCard.revealed .root-cause-box {
+    animation: revealBox 0.5s ease both;
+  }
+
+  @keyframes revealBox {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-canvas"></div>
+<div class="glow-orb glow-orb-1"></div>
+<div class="glow-orb glow-orb-2"></div>
+<div class="glow-orb glow-orb-3"></div>
+<div class="particle-field" id="particleField"></div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">Incident<span>IQ</span></div>
+  </div>
+  <div style="display:flex; align-items:center; gap:16px;">
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Powered by NVIDIA Nemotron</div>
+    <div class="status-pill" id="apiStatus">
+      <div class="status-dot"></div>
+      <span>Checking...</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="hero-section hero">
+    <div class="hero-text">
+      <div class="hero-tag">🧠 AI Root Cause Analysis</div>
+      <h1>Incidents Resolved<br>at <span class="highlight">Machine Speed</span></h1>
+      <p>Drop in your logs. Get the root cause, confidence score, and exact remediation steps — instantly.</p>
+    </div>
+
+    <div class="robot-wrapper" id="robotWrapper">
+      <div class="robot-ring"></div>
+      <div class="robot-ring"></div>
+      <div class="robot-ring"></div>
+      <svg class="robot-svg" id="robotSvg" viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg">
+        <line x1="90" y1="10" x2="90" y2="32" stroke="#00e5ff" stroke-width="2.5" stroke-linecap="round" opacity="0.8"/>
+        <circle cx="90" cy="8" r="5" fill="#00e5ff" opacity="0.9">
+          <animate attributeName="r" values="5;7;5" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.9;0.4;0.9" dur="2s" repeatCount="indefinite"/>
+        </circle>
+
+        <rect x="38" y="32" width="104" height="84" rx="18" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+        <rect x="42" y="36" width="96" height="72" rx="14" fill="url(#headGrad)" opacity="0.6"/>
+
+        <rect x="50" y="44" width="80" height="60" rx="10" fill="#050810" stroke="#00e5ff" stroke-width="1" opacity="0.8"/>
+        <rect x="50" y="44" width="80" height="60" rx="10" fill="none" stroke="#00e5ff" stroke-width="0.5" opacity="0.3">
+          <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite"/>
+        </rect>
+
+        <g id="robot-eyes-group">
+          <circle cx="72" cy="68" r="11" fill="#0c1120" stroke="#00e5ff" stroke-width="1.2" opacity="0.9"/>
+          <circle id="pupilLeft" cx="72" cy="68" r="6" fill="#00e5ff" opacity="0.9"/>
+          <circle id="pupilLeftGlow" cx="72" cy="68" r="3" fill="white" opacity="0.6"/>
+
+          <circle cx="108" cy="68" r="11" fill="#0c1120" stroke="#00e5ff" stroke-width="1.2" opacity="0.9"/>
+          <circle id="pupilRight" cx="108" cy="68" r="6" fill="#00e5ff" opacity="0.9"/>
+          <circle id="pupilRightGlow" cx="108" cy="68" r="3" fill="white" opacity="0.6"/>
+
+          <rect x="62" y="88" width="56" height="6" rx="3" fill="#1e2d4a"/>
+          <rect id="mouthBar" x="62" y="88" width="30" height="6" rx="3" fill="#00e5ff" opacity="0.7">
+            <animate id="mouthAnim" attributeName="width" values="20;50;20" dur="3s" repeatCount="indefinite"/>
+          </rect>
+        </g>
+
+        <rect x="80" y="116" width="20" height="12" rx="4" fill="#1e2d4a"/>
+
+        <rect x="28" y="128" width="124" height="72" rx="16" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+        <rect x="32" y="132" width="116" height="60" rx="12" fill="url(#bodyGrad)" opacity="0.4"/>
+
+        <rect x="50" y="140" width="80" height="48" rx="8" fill="#050810" stroke="#1e2d4a" stroke-width="1"/>
+
+        <circle cx="66" cy="155" r="5" fill="#00ff88" opacity="0.8">
+          <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="82" cy="155" r="5" fill="#ffd60a" opacity="0.6">
+          <animate attributeName="opacity" values="0.6;1;0.6" dur="2.1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="98" cy="155" r="5" fill="#a855f7" opacity="0.7">
+          <animate attributeName="opacity" values="0.7;0.3;0.7" dur="1.8s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="114" cy="155" r="5" fill="#ff3d71" opacity="0.5">
+          <animate attributeName="opacity" values="0.5;0.9;0.5" dur="2.4s" repeatCount="indefinite"/>
+        </circle>
+
+        <rect x="58" y="170" width="64" height="3" rx="2" fill="#1e2d4a"/>
+        <rect x="58" y="170" width="40" height="3" rx="2" fill="#00e5ff" opacity="0.5">
+          <animate attributeName="width" values="20;60;20" dur="4s" repeatCount="indefinite"/>
+        </rect>
+        <rect x="58" y="178" width="64" height="3" rx="2" fill="#1e2d4a"/>
+        <rect x="58" y="178" width="50" height="3" rx="2" fill="#a855f7" opacity="0.4">
+          <animate attributeName="width" values="40;64;40" dur="3.5s" repeatCount="indefinite"/>
+        </rect>
+
+        <rect x="4" y="130" width="20" height="50" rx="10" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+        <rect x="156" y="130" width="20" height="50" rx="10" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+
+        <circle cx="14" cy="186" r="9" fill="#111827" stroke="#1e2d4a" stroke-width="1.5"/>
+        <circle cx="166" cy="186" r="9" fill="#111827" stroke="#1e2d4a" stroke-width="1.5"/>
+
+        <rect x="42" y="200" width="36" height="16" rx="8" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+        <rect x="102" y="200" width="36" height="16" rx="8" fill="#0c1120" stroke="#1e2d4a" stroke-width="1.5"/>
+
+        <defs>
+          <linearGradient id="headGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.08"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </linearGradient>
+          <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#a855f7" stop-opacity="0.06"/>
+            <stop offset="100%" stop-color="transparent"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow">
+    <div class="stat-card">
+      <div class="stat-value" id="statTotal">0</div>
+      <div class="stat-label">Incidents Analyzed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--green)">~45ms</div>
+      <div class="stat-label">Avg Response Time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value" style="color:var(--accent3)">2</div>
+      <div class="stat-label">Active Tenants</div>
+    </div>
+  </div>
+
+  <div class="panel-grid">
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🔍 Analyze Incident</div>
+      </div>
+      <div class="panel-body">
+
+        <div class="endpoint-row">
+          <div class="endpoint-url"><span>POST</span> /api/analyze</div>
+          <button class="copy-btn" onclick="copyEndpoint()">copy</button>
+        </div>
+
+        <div class="form-group">
+          <label>Quick Presets</label>
+          <div class="presets-row">
+            <button class="preset-btn" onclick="loadPreset('db')">💾 DB Timeout</button>
+            <button class="preset-btn" onclick="loadPreset('memory')">🧠 OOM Crash</button>
+            <button class="preset-btn" onclick="loadPreset('api')">🌐 API Gateway</button>
+            <button class="preset-btn" onclick="loadPreset('cpu')">⚙️ CPU Spike</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tenant</label>
+          <div class="tenant-pills">
+            <button class="tenant-pill active" onclick="selectTenant('demo_corp','demo-key-123',this)">demo_corp</button>
+            <button class="tenant-pill" onclick="selectTenant('test_inc','test-key-456',this)">test_inc</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Service Name</label>
+          <input type="text" id="inputService" placeholder="e.g. payment-api" value="payment-api">
+        </div>
+
+        <div class="form-group">
+          <label>Error Message</label>
+          <input type="text" id="inputError" placeholder="e.g. Connection timeout" value="Connection timeout after 30s">
+        </div>
+
+        <div class="form-group">
+          <label>Log Excerpt</label>
+          <textarea id="inputLogs" placeholder="Paste relevant log lines here...">ERROR: database connection pool exhausted. Active connections: 50/50. New request waiting for 30000ms.</textarea>
+        </div>
+
+        <button class="btn-analyze" onclick="analyze()" id="analyzeBtn">
+          <div class="spinner" id="btnSpinner"></div>
+          <span id="btnText">⚡ Analyze Now</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📊 Analysis Result</div>
+        <div id="resultSeverity"></div>
+      </div>
+      <div class="panel-body">
+
+        <div class="result-empty" id="resultEmpty">
+          <div class="empty-icon">🔬</div>
+          <p>Submit an incident to see<br>AI-powered analysis</p>
+        </div>
+
+        <div class="result-card" id="resultCard">
+          <div class="confidence-row">
+            <div class="confidence-label">Confidence</div>
+            <div class="confidence-bar">
+              <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+            <div class="confidence-pct" id="confidencePct"></div>
+          </div>
+
+          <div class="root-cause-box">
+            <div class="rc-label">Root Cause</div>
+            <div class="rc-text" id="rootCauseText"></div>
+          </div>
+
+          <div class="steps-title">Remediation Steps</div>
+          <div id="stepsContainer"></div>
+
+          <div class="meta-row" id="metaRow"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel history-panel">
+      <div class="panel-header">
+        <div class="panel-title">📋 Incident History</div>
+        <button class="copy-btn" onclick="loadHistory()" style="color:var(--accent);border-color:rgba(0,229,255,0.3)">↻ Refresh</button>
+      </div>
+      <div class="panel-body" style="padding:0 24px 24px;">
+        <div class="empty-history" id="historyEmpty">No incidents yet. Analyze one above ↑</div>
+        <ul class="incident-list" id="incidentList"></ul>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_BASE = '';
+
+  let currentTenant = 'demo_corp';
+  let currentApiKey = 'demo-key-123';
+  let totalAnalyzed = 0;
+
+  const presets = {
+    db: {
+      service: 'payment-api',
+      error: 'Connection pool exhausted',
+      logs: 'ERROR: database connection pool exhausted. Active connections: 50/50. New request waiting for 30000ms timeout.'
+    },
+    memory: {
+      service: 'worker-service',
+      error: 'Out of memory',
+      logs: 'FATAL: java.lang.OutOfMemoryError: Java heap space. Heap usage: 7.9GB/8GB. GC overhead limit exceeded.'
+    },
+    api: {
+      service: 'gateway-service',
+      error: '502 Bad Gateway',
+      logs: 'nginx: upstream timed out (110: Connection timed out) while reading response header from upstream. API gateway returning 502.'
+    },
+    cpu: {
+      service: 'ml-inference',
+      error: 'High load average',
+      logs: 'WARNING: CPU load average: 14.2 (4 cores). Process cpu_throttled=true. Response latency p99: 8500ms.'
+    }
+  };
+
+  function loadPreset(key) {
+    const p = presets[key];
+    document.getElementById('inputService').value = p.service;
+    document.getElementById('inputError').value = p.error;
+    document.getElementById('inputLogs').value = p.logs;
+  }
+
+  function selectTenant(id, key, el) {
+    currentTenant = id;
+    currentApiKey = key;
+    document.querySelectorAll('.tenant-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  async function checkStatus() {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      const data = await res.json();
+      const pill = document.getElementById('apiStatus');
+      if (data.status === 'healthy') {
+        pill.innerHTML = '<div class="status-dot"></div><span>API Live</span>';
+        pill.style.color = 'var(--green)';
+        pill.style.borderColor = 'rgba(0,255,136,0.3)';
+      }
+    } catch (e) {
+      const pill = document.getElementById('apiStatus');
+      pill.innerHTML = '<div class="status-dot" style="background:var(--accent2)"></div><span>Offline</span>';
+      pill.style.color = 'var(--accent2)';
+    }
+  }
+
+  async function analyze() {
+    const service = document.getElementById('inputService').value.trim();
+    const error = document.getElementById('inputError').value.trim();
+    const logs = document.getElementById('inputLogs').value.trim();
+
+    if (!service || !logs) {
+      showToast('Please fill in Service and Logs fields', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    document.getElementById('btnSpinner').style.display = 'block';
+    document.getElementById('btnText').textContent = 'Analyzing...';
+
+    document.getElementById('robotWrapper').classList.add('analyzing');
+    setRobotThinking(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          alert: { service, error, logs, metrics: {} },
+          tenant_id: currentTenant,
+          api_key: currentApiKey
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'API error');
+      }
+
+      const data = await res.json();
+      displayResult(data);
+      totalAnalyzed++;
+      document.getElementById('statTotal').textContent = totalAnalyzed;
+      showToast('✓ Analysis complete', 'success');
+      setTimeout(loadHistory, 500);
+
+    } catch (e) {
+      showToast('Error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('btnSpinner').style.display = 'none';
+      document.getElementById('btnText').textContent = '⚡ Analyze Now';
+      document.getElementById('robotWrapper').classList.remove('analyzing');
+      setRobotThinking(false);
+    }
+  }
+
+  function displayResult(data) {
+    document.getElementById('resultEmpty').style.display = 'none';
+    const card = document.getElementById('resultCard');
+    card.style.display = 'block';
+    card.classList.add('revealed');
+
+    const sev = (data.severity || 'medium').toLowerCase();
+    document.getElementById('resultSeverity').innerHTML =
+      `<span class="severity-badge severity-${sev}">${sev}</span>`;
+
+    const pct = Math.round((data.confidence_score || 0) * 100);
+    document.getElementById('confidencePct').textContent = pct + '%';
+    setTimeout(() => {
+      document.getElementById('confidenceFill').style.width = pct + '%';
+    }, 100);
+
+    document.getElementById('rootCauseText').textContent = data.root_cause;
+
+    const container = document.getElementById('stepsContainer');
+    container.innerHTML = '';
+    (data.remediation_steps || []).forEach((step, i) => {
+      container.innerHTML += `
+        <div class="step-item" style="animation-delay:${i * 0.06}s">
+          <div class="step-num">${i + 1}</div>
+          <div class="step-text">${step}</div>
+        </div>`;
+    });
+
+    const meta = document.getElementById('metaRow');
+    meta.innerHTML = `
+      <div class="meta-chip">🆔 ${data.incident_id}</div>
+      <div class="meta-chip">⏱ ${data.analysis_time_ms}ms</div>
+      <div class="meta-chip">🏢 ${data.tenant || currentTenant}</div>
+      ${(data.affected_services || []).map(s => `<div class="meta-chip">🖥 ${s}</div>`).join('')}
+    `;
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch(`${API_BASE}/api/tenant/incidents?tenant_id=${currentTenant}&api_key=${currentApiKey}&limit=20`);
+      const data = await res.json();
+      const incidents = data.incidents || [];
+
+      const list = document.getElementById('incidentList');
+      const empty = document.getElementById('historyEmpty');
+
+      if (!incidents.length) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      list.innerHTML = incidents.reverse().map((inc, i) => {
+        const sev = (inc.severity || 'medium').toLowerCase();
+        const dotColor = {critical:'#ff3d71',high:'#ffa600',medium:'#ffd60a',low:'#00ff88'}[sev] || '#64748b';
+        const cause = inc.root_cause || (inc.data && inc.data.root_cause) || 'Unknown';
+        const service = inc.service || (inc.data && inc.data.alert && inc.data.alert.service) || '?';
+        const ts = inc.timestamp || (inc.data && inc.data.timestamp) || '';
+        const timeStr = ts ? new Date(ts).toLocaleTimeString() : '';
+
+        return `
+          <li class="incident-item" style="animation-delay:${i*0.04}s">
+            <div class="incident-dot" style="background:${dotColor}"></div>
+            <div>
+              <div class="incident-service">${service}</div>
+              <div class="incident-cause">${cause}</div>
+            </div>
+            <span class="severity-badge severity-${sev}">${sev}</span>
+            <div class="incident-time">${timeStr}</div>
+          </li>`;
+      }).join('');
+
+    } catch (e) {
+      console.log('History error:', e);
+    }
+  }
+
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function copyEndpoint() {
+    navigator.clipboard.writeText(`${API_BASE}/api/analyze`);
+    showToast('Endpoint URL copied!', 'success');
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') analyze();
+  });
+
+  checkStatus();
+  loadHistory();
+  setInterval(checkStatus, 30000);
+
+  const eyesGroup = document.getElementById('robot-eyes-group');
+  const robotSvg = document.getElementById('robotSvg');
+  const robotWrapper = document.getElementById('robotWrapper');
+
+  const MAX_EYE_X = 4;
+  const MAX_EYE_Y = 3;
+  const MAX_HEAD_TILT = 18;
+
+  let targetEyeX = 0, targetEyeY = 0;
+  let currentEyeX = 0, currentEyeY = 0;
+  let targetTilt = 0, currentTilt = 0;
+  let rafId;
+
+  document.addEventListener('mousemove', (e) => {
+    const rect = robotWrapper.getBoundingClientRect();
+    const robotCX = rect.left + rect.width / 2;
+    const robotCY = rect.top + rect.height / 2;
+
+    const dx = e.clientX - robotCX;
+    const dy = e.clientY - robotCY;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    const strength = Math.min(dist / 300, 1);
+    targetEyeX = nx * MAX_EYE_X * strength;
+    targetEyeY = ny * MAX_EYE_Y * strength;
+
+    const vw = window.innerWidth;
+    const normX = (e.clientX / vw) * 2 - 1;
+    targetTilt = normX * MAX_HEAD_TILT;
+  });
+
+  function animateRobot() {
+    currentEyeX += (targetEyeX - currentEyeX) * 0.12;
+    currentEyeY += (targetEyeY - currentEyeY) * 0.12;
+    currentTilt += (targetTilt - currentTilt) * 0.06;
+
+    const pleft = document.getElementById('pupilLeft');
+    const pleftG = document.getElementById('pupilLeftGlow');
+    const pright = document.getElementById('pupilRight');
+    const prightG = document.getElementById('pupilRightGlow');
+
+    if (pleft) {
+      pleft.setAttribute('cx', 72 + currentEyeX);
+      pleft.setAttribute('cy', 68 + currentEyeY);
+    }
+    if (pleftG) {
+      pleftG.setAttribute('cx', 72 + currentEyeX - 1.5);
+      pleftG.setAttribute('cy', 68 + currentEyeY - 1.5);
+    }
+    if (pright) {
+      pright.setAttribute('cx', 108 + currentEyeX);
+      pright.setAttribute('cy', 68 + currentEyeY);
+    }
+    if (prightG) {
+      prightG.setAttribute('cx', 108 + currentEyeX - 1.5);
+      prightG.setAttribute('cy', 68 + currentEyeY - 1.5);
+    }
+
+    robotSvg.style.transform = `rotate(${currentTilt * 0.4}deg)`;
+
+    rafId = requestAnimationFrame(animateRobot);
+  }
+
+  animateRobot();
+
+  function setRobotThinking(on) {
+    const pl = document.getElementById('pupilLeft');
+    const pr = document.getElementById('pupilRight');
+    if (on) {
+      pl && (pl.setAttribute('fill', '#a855f7'));
+      pr && (pr.setAttribute('fill', '#ff3d71'));
+    } else {
+      pl && (pl.setAttribute('fill', '#00e5ff'));
+      pr && (pr.setAttribute('fill', '#00e5ff'));
+    }
+  }
+
+  const particleField = document.getElementById('particleField');
+  const PARTICLE_COUNT = 30;
+  const PARTICLE_COLORS = ['#00e5ff', '#a855f7', '#ff3d71', '#00ff88', '#ffd60a'];
+  const DATA_STRINGS = ['01', 'FF', 'ERR', 'OK', '404', '200', 'NaN', 'NULL', '0x', 'ACK'];
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    spawnParticle();
+  }
+
+  function spawnParticle() {
+    const p = document.createElement('div');
+    const isData = Math.random() > 0.6;
+
+    if (isData) {
+      p.className = 'data-bit';
+      p.textContent = DATA_STRINGS[Math.floor(Math.random() * DATA_STRINGS.length)];
+    } else {
+      p.className = 'particle';
+      const size = Math.random() * 3 + 1;
+      p.style.cssText = `
+        width: ${size}px;
+        height: ${size}px;
+        background: ${PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)]};
+      `;
+    }
+
+    const x = Math.random() * 100;
+    const duration = Math.random() * 15 + 8;
+    const delay = Math.random() * 15;
+    const drift = (Math.random() - 0.5) * 80;
+
+    p.style.left = `${x}vw`;
+    p.style.setProperty('--drift', `${drift}px`);
+    p.style.animationDuration = `${duration}s`;
+    p.style.animationDelay = `${delay}s`;
+
+    particleField.appendChild(p);
+
+    setTimeout(() => {
+      p.remove();
+      spawnParticle();
+    }, (duration + delay) * 1000);
+  }
+</script>
+</body>
+</html>
+"""
 
 # ---------------------------------------------------------------------------
 # Models
