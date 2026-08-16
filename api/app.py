@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -8,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from mangum import Mangum
 from pydantic import BaseModel
+
+from dashboard_html import DASHBOARD_HTML
 
 app = FastAPI(title="Incident IQ", version="2.0.0")
 
@@ -164,27 +165,14 @@ class NemotronReasoningEngine:
 
 engine = NemotronReasoningEngine()
 
-# ---------------------------------------------------------------------------
-# Static HTML
-# ---------------------------------------------------------------------------
-
-_PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public")
-_INDEX_PATH = os.path.join(_PUBLIC_DIR, "index.html")
-
-
-def _load_dashboard_html() -> str:
-    with open(_INDEX_PATH, "r", encoding="utf-8") as f:
-        return f.read()
-
-
 @app.get("/")
 def root():
-    return HTMLResponse(content=_load_dashboard_html(), status_code=200)
+    return HTMLResponse(content=DASHBOARD_HTML, status_code=200)
 
 
 @app.get("/dashboard")
 def dashboard():
-    return HTMLResponse(content=_load_dashboard_html(), status_code=200)
+    return HTMLResponse(content=DASHBOARD_HTML, status_code=200)
 
 
 @app.get("/health")
