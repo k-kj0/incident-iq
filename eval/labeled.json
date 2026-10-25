@@ -1,0 +1,16 @@
+[
+  {"service": "payment-api", "error": "Connection pool exhausted", "logs": "database connection pool exhausted. Active connections 50/50", "label": "Database connection pool exhaustion"},
+  {"service": "orders-api", "error": "DB unavailable", "logs": "database refused new connections, pool at max", "label": "Database connection pool exhaustion"},
+  {"service": "auth-service", "error": "Slow queries", "logs": "database queries blocked waiting for a free connection pool slot", "label": "Database connection pool exhaustion"},
+  {"service": "worker", "error": "OOM kill", "logs": "java.lang.OutOfMemoryError heap space, memory usage 7.9GB of 8GB", "label": "Out of memory error"},
+  {"service": "batch-job", "error": "Killed", "logs": "container killed by kernel, oom-killer invoked, memory cgroup limit hit", "label": "Out of memory error"},
+  {"service": "cache", "error": "Evictions", "logs": "redis memory limit reached, evicting keys", "label": "Out of memory error"},
+  {"service": "gateway", "error": "504", "logs": "upstream request timeout after 30s", "label": "Service timeout"},
+  {"service": "search", "error": "Slow", "logs": "request timeout waiting on downstream service", "label": "Service timeout"},
+  {"service": "ml-inference", "error": "High load", "logs": "cpu load average 14.2 on 4 cores, process throttled", "label": "CPU overload"},
+  {"service": "ingest", "error": "CPU saturated", "logs": "cpu usage 99 percent for 10 minutes", "label": "CPU overload"},
+  {"service": "logger", "error": "No space", "logs": "disk full, write failed, no space left on device", "label": "Disk space exhaustion"},
+  {"service": "backup", "error": "Write failed", "logs": "storage volume at 100 percent usage", "label": "Disk space exhaustion"},
+  {"service": "edge", "error": "Unreachable", "logs": "network unreachable, connection refused by upstream", "label": "Network connectivity failure"},
+  {"service": "dns", "error": "Lookup failed", "logs": "network error resolving host, connection refused", "label": "Network connectivity failure"}
+]
