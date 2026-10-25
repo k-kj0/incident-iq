@@ -9,11 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from .cache import cached
-from .db import get_session
-from .embeddings import embed
-from .models import Incident
-from .settings import TENANT_KEYS
+from .core import TENANT_KEYS, Incident, cached, embed, get_session
 
 log = structlog.get_logger()
 
@@ -55,14 +51,13 @@ def build_router(analyze_fn) -> APIRouter:
     @r.post("/analyze")
     def analyze(req: AnalyzeRequest, db: Session = Depends(get_session)):
         _auth(req.tenant_id, req.api_key)
-        started = time.perf_counter()
+        t0 = time.perf_counter()
         result = analyze_fn(req.alert.model_dump())
-        incident_id = result.get("incident_id") or f"inc-{uuid.uuid4().hex[:10]}"
-        result["incident_id"] = incident_id
+        result["analysis_time_ms"] = round((time.perf_counter() - t0) * 1000, 3)  # real, measured
         vec = embed(f"{req.alert.service}\n{req.alert.error}\n{req.alert.logs}")
         db.add(
             Incident(
-                incident_id=incident_id,
+                incident_id=result["incident_id"],
                 tenant_id=req.tenant_id,
                 service=req.alert.service,
                 error=req.alert.error,
@@ -75,9 +70,8 @@ def build_router(analyze_fn) -> APIRouter:
             )
         )
         db.commit()
-        log.info("incident_saved", tenant=req.tenant_id, incident_id=incident_id,
-                 embedded=vec is not None,
-                 ms=round((time.perf_counter() - started) * 1000, 1))
+        log.info("incident_saved", tenant=req.tenant_id,
+                 incident_id=result["incident_id"], embedded=vec is not None)
         return result
 
     @r.get("/incidents")
@@ -118,7 +112,7 @@ def build_router(analyze_fn) -> APIRouter:
                 ],
             }
 
-        # 60s TTL: a just-saved incident can take up to a minute to show in cached results.
+        # 60 second cache: a just saved incident can take up to a minute to appear here.
         return cached(key, 60, compute)
 
     return r
