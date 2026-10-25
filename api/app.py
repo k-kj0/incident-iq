@@ -1664,6 +1664,29 @@ def get_incidents(tenant_id: str, api_key: str, limit: int = 50):
     }
 
 
-# Vercel's Python runtime looks for a top-level variable literally named
-# "app", "application", or "handler". This must stay as-is.
-handler = Mangum(app)
+# ---------------------------------------------------------------------------
+# v2: Postgres + pgvector routes (only active when the backend/ package and a
+# database are available, i.e. in Docker. On Vercel this is skipped quietly.)
+# ---------------------------------------------------------------------------
+
+def _analyze_for_v2(alert: dict) -> dict:
+    import uuid
+
+    analysis = engine.analyze_incident(alert["logs"], alert["service"])
+    return {
+        "incident_id": f"inc-{uuid.uuid4().hex[:10]}",
+        "root_cause": analysis.root_cause,
+        "confidence_score": analysis.confidence_score,
+        "remediation_steps": analysis.remediation_steps,
+        "affected_services": analysis.affected_services,
+        "severity": analysis.severity,
+        "reasoning_trace": analysis.reasoning_trace,
+    }
+
+
+try:
+    from backend import mount
+
+    mount(app, _analyze_for_v2)
+except Exception as exc:  # keeps the Vercel in-memory build working
+    print("v2 routes not mounted:", exc)
