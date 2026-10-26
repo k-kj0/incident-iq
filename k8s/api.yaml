@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: incident-iq-config
+data:
+  REDIS_URL: redis://redis:6379/0
+  PORT: "8000"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: incident-iq-secrets
+type: Opaque
+stringData:
+  DATABASE_URL: postgresql://incident:incident@db:5432/incident   # demo only
+  GEMINI_API_KEY: ""   # optional; embeddings degrade gracefully when empty
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: incident-iq
+spec:
+  selector:
+    app: incident-iq
+  ports:
+    - port: 80
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-iq
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: incident-iq
+  template:
+    metadata:
+      labels:
+        app: incident-iq
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      initContainers:
+        - name: migrate
+          image: incident-iq:local
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - 'for i in $(seq 1 30); do alembic upgrade head && exit 0; echo "db not ready, retry $i"; sleep 2; done; exit 1'
+          envFrom:
+            - secretRef: {name: incident-iq-secrets}
+      containers:
+        - name: api
+          image: incident-iq:local
+          imagePullPolicy: IfNotPresent
+          command: ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: {name: incident-iq-config}
+            - secretRef: {name: incident-iq-secrets}
+          livenessProbe:
+            httpGet: {path: /health, port: 8000}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /api/v2/ready, port: 8000}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: incident-iq
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: incident-iq
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: incident-iq
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: incident-iq
