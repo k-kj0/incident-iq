@@ -1,0 +1,27 @@
+name: k8s-smoke
+on:
+  push:
+    paths: ["k8s/**", "Dockerfile", "requirements*.txt", "api/**", "backend/**", ".github/workflows/k8s.yml"]
+  pull_request:
+jobs:
+  kind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: incident-iq
+      - name: Build image and load into kind
+        run: |
+          docker build -t incident-iq:local .
+          kind load docker-image incident-iq:local --name incident-iq
+      - name: Apply manifests
+        run: kubectl apply -k k8s/
+      - name: Smoke test
+        run: bash scripts/k8s_smoke.sh
+      - name: Debug on failure
+        if: failure()
+        run: |
+          kubectl get pods -o wide
+          kubectl describe pods | tail -n 120
+          kubectl logs deploy/incident-iq --all-containers --tail=100 || true
