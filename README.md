@@ -1,16 +1,148 @@
-# ⚡ Incident IQ + GTM Account Resolution
+# Incident IQ + GTM + QuoteLens
+
+One FastAPI + PostgreSQL codebase with three projects on it:
+
+1. **QuoteLens (`/api/v3/quotes`)**: compares commercial insurance quotes and shows the exact source text behind every extracted number. Any value it cannot verify is flagged, not shown as fact.
+2. **GTM account resolution (`/api/v3/gtm`)**: merges the same company from many reps' sheets into one account and ranks who to call today, with a reason.
+3. **Incident IQ (`/api/analyze`, `/api/v2`)**: the original multi-tenant root-cause analyzer for error logs.
 
 **Live dashboard (v1 incident analyzer):** https://incident-iq-drab.vercel.app/dashboard
 **Repo:** https://github.com/k-kj0/incident-iq
 
-This repo holds two things on one FastAPI codebase:
+---
 
-1. **GTM account resolution (new, `/api/v3/gtm`)**: merges the same company from many reps' sheets and tools into one account, then tells a rep who to call today and why.
-2. **Incident IQ (original, `/api/analyze` and `/api/v2`)**: a multi-tenant root-cause analyzer for error logs.
+## Part 1: QuoteLens
+
+### The problem
+
+Commercial insurance quotes are dense PDFs, and every carrier words things differently. One calls a cover "E&O", another "Professional Liability". Comparing quotes means re-keying numbers by hand and hoping none were misread. When AI does the extraction, the next problem is trust: a confident, wrong limit or deductible in a comparison table is worse than no table.
+
+QuoteLens is a demo of one way to approach this:
+
+- **Every value carries a citation** (page and character span) pointing at the text it came from.
+- **A citation checker re-reads the document** and compares. It does not ask the model whether it is right, so an invented number is caught whichever extractor produced it.
+- **Coverage labels are normalized**, so quotes can be put side by side.
+- **Gaps are flagged**: a cover one carrier did not quote, a lower limit, an exclusion that only one quote has.
+
+This is a portfolio demo built on synthetic sample quotes. It is not based on any company's real pipeline, documents or customer data.
+
+### What it does
+
+| Capability | How |
+|---|---|
+| Extract from PDFs | `pdfplumber` reads text-based PDFs; a rule-based extractor pulls carrier, premium, coverage limits and deductibles, and exclusions |
+| Cite every value | Each value has `{page, start, end, text}` where `text == page_text[start:end]` |
+| Verify citations | `verify.py` checks the page exists, the span is inside the page, the cited text matches the document, and the number matches the cited text |
+| Normalize coverage names | Alias table plus a strict fuzzy match; short or unknown labels stay `unmapped` instead of being guessed |
+| Compare quotes | Side-by-side rows per coverage with gap, lower-limit and exclusion-difference flags |
+| Optional LLM extraction | Gemini returns each value with an exact snippet; claims whose snippet is not on the page, or whose number disagrees with its snippet, are rejected |
+| Click-to-source demo page | `/api/v3/quotes/ui` shows the comparison; clicking a value highlights its source text |
+| Multi-tenant | Same header auth as the rest of the repo; every query is scoped to the tenant |
+
+### How the citation check works
+
+```
+page text ──► extractor (rules or LLM) ──► claims, each with a citation
+                                                │
+                                                ▼
+                  verify: page exists? span inside page? cited text == document text?
+                          does the number parse out of the cited text?
+                                                │
+                                ok ─► shown as verified
+                                fail ─► shown as unverified (rules) or rejected (LLM path)
+```
+
+Tests show both failure modes: a value changed to a number the document does not contain, and a citation whose text or page does not exist.
+
+### Endpoints
+
+All requests except `/ui` need the headers `X-Tenant-Id` and `X-Api-Key`.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/v3/quotes` | POST | Ingest a quote as page text: `{"filename", "pages": [...], "extractor": "rules" or "llm"}` |
+| `/api/v3/quotes/upload` | POST | Upload a text-based PDF (up to 10 MB) |
+| `/api/v3/quotes` | GET | List this tenant's quotes |
+| `/api/v3/quotes/{id}` | GET | One quote with its pages, extraction, verification results and rejected claims |
+| `/api/v3/quotes/compare` | POST | Compare 2 to 5 quotes: `{"quote_ids": [1, 2]}` |
+| `/api/v3/quotes/ui` | GET | Demo page: upload two PDFs, compare, click a value to see its source |
+
+### Run it yourself
+
+Works in GitHub Codespaces or any machine with Python 3.12+ and Docker. Run from the repo root.
+
+**1. Install and run the tests (no database needed)**
+
+```bash
+pip install -r requirements.txt -r requirements-backend.txt reportlab
+python -m pytest tests/test_quotes.py -q
+```
+
+Expect `11 passed`. The API tests use in-memory SQLite. Without `reportlab`, the PDF upload test is skipped.
+
+**2. Start Postgres and the API**
+
+```bash
+docker compose up -d db redis
+export DATABASE_URL=postgresql://incident:incident@localhost:5432/incident
+export REDIS_URL=redis://localhost:6379/0
+PYTHONPATH=. python -m alembic upgrade head
+PYTHONPATH=. python -m uvicorn api.app:app --port 8000
+```
+
+Leave it running and open a second terminal. No Docker? Create a free Postgres on Neon, run `CREATE EXTENSION IF NOT EXISTS vector;` once, and set `DATABASE_URL` to its connection string.
+
+**3. Ingest and compare two sample quotes**
+
+```bash
+H='-H X-Tenant-Id:demo_corp -H X-Api-Key:demo-key-123 -H Content-Type:application/json'
+curl -s -X POST localhost:8000/api/v3/quotes $H -d '{"filename":"a.pdf","pages":["Carrier: Northstar Mutual\nCommercial General Liability: Limit $2,000,000 Deductible $2,500\nCyber Liability: Limit $1M Retention $10,000\nTotal Premium: $18,400\n"]}' | python -m json.tool
+curl -s -X POST localhost:8000/api/v3/quotes $H -d '{"filename":"b.pdf","pages":["Insurer: Harbor Specialty\nCGL | Limit $1,000,000 | Deductible $5,000\nE&O - Limit $3 million\nPremium: $15,900\n"]}' | python -m json.tool
+curl -s -X POST localhost:8000/api/v3/quotes/compare $H -d '{"quote_ids":[1,2]}' | python -m json.tool
+```
+
+Use the `id` values printed by the first two commands if they are not 1 and 2.
+
+Expected in the comparison:
+
+- Cyber flagged as not quoted by Harbor Specialty.
+- Professional liability flagged as not quoted by Northstar Mutual.
+- General liability flagged with a lower limit for Harbor Specialty (best is $2,000,000).
+- "CGL" and "Commercial General Liability" mapped to the same row.
+
+### Measured result
+
+On two hand-labeled synthetic quotes (4 coverages, 2 carriers, 2 premiums, differently worded labels), the extractor output matches the labels exactly and every value passes verification. This runs as a regression test: if extraction changes, the build fails.
+
+This fixture is synthetic and small, so it shows the pipeline works, not that it handles real carrier documents. See the limits below.
+
+### How the pieces map to common AI-product work
+
+| Capability | Where it lives |
+|---|---|
+| Structured extraction from documents | `backend/quotes/extract.py`, `llm_extract.py` |
+| Source-cited, checkable output | `backend/quotes/verify.py` |
+| Turning messy labels into a standard schema | `backend/quotes/coverage.py` |
+| Quote comparison and gap analysis | `backend/quotes/compare.py` |
+| LLM output validated before it is shown | `llm_extract.py` (claims rejected unless the source supports them) |
+| Backend API, storage, tenant isolation | `router.py`, `models.py`, migration `0003` |
+| Product UI | `backend/quotes/ui.py` |
+| Evaluation on labeled data | `tests/test_quotes.py` |
+
+### Limits (stated honestly)
+
+- **Synthetic data only.** The fixtures are made-up quotes. Real carrier PDFs have tables, multiple columns and scanned pages that the rule-based extractor will not handle well. Do not upload real client documents to a demo deployment.
+- **Text-based PDFs only.** Scanned PDFs return a clear 422 error. There is no OCR.
+- **Rule-based extraction is a baseline.** It expects lines like `Cyber Liability: Limit $1M Retention $10,000`. The LLM path handles freer layouts but has only been tested with a fake model, not against the live Gemini API.
+- **Citations are text spans, not bounding boxes.** The demo highlights the exact text in a text view, not on the rendered PDF page.
+- **Coverage vocabulary is small.** Eight coverage types. Unknown labels stay `unmapped` and are listed in the comparison instead of being guessed.
+- **Money only.** Limits and deductibles are dollar amounts. Percentages, per-occurrence versus aggregate terms and sub-limits are not modeled.
+- **No embeddings in QuoteLens yet.** pgvector is used by Incident IQ (v2) but not for searching quote text.
+- **Comparison is limited to coverages both quotes map to a standard name.**
 
 ---
 
-## Part 1: GTM account resolution
+## Part 2: GTM account resolution
 
 ### The problem
 
@@ -18,31 +150,30 @@ In many sales teams every rep runs their own setup. The same company sits in fiv
 
 This service fixes that one thing:
 
-- **One account per real company.** Records from any source are normalized and merged into a single account.
-- **Lineage.** Every raw record is kept, with the source it came from and how it was matched.
-- **"Call today, and why."** Accounts are ranked by an explainable score, and every point has a sentence attached.
-- **No double outreach.** If two reps have touched the same account, it is flagged `coordinate` instead of `call_today`.
+- **One account per real company.** Records from any source are normalized and merged.
+- **Lineage.** Every raw record is kept with its source and how it was matched.
+- **"Call today, and why."** Accounts are ranked by an explainable score; every point has a sentence attached.
+- **No double outreach.** If two or more reps touched an account, it is flagged `coordinate` instead of `call_today`.
 
 ### What it does
 
 | Capability | How |
 |---|---|
-| Normalize messy input | URLs and emails reduce to a registrable domain; legal suffixes (GmbH, Ltd, Inc) and accents are stripped; free-mail and social profile domains are never used as keys |
+| Normalize messy input | URLs and emails reduce to a registrable domain; legal suffixes and accents are stripped; free-mail and social profile domains are never used as keys |
 | Resolve to one account | Same domain merges first; otherwise fuzzy name match inside the same country with no conflicting domain |
-| Precision first | Short names (Stripe vs Stripes) and near-misses are **not merged**; they go to a human review queue |
+| Precision first | Short names (Stripe vs Stripes) and near-misses are not merged; they go to a review queue |
 | Idempotent ingest | A record is identified by `(tenant, source, source_record_id)`, so a failed batch can be re-sent safely |
-| Dead letters | Rows that can't be loaded are saved with the reason instead of vanishing |
-| Explainable scoring | Signals, market, company size and recency each add or subtract a stated number of points |
-| Multi-tenant | Header auth with constant-time key comparison; every query is scoped to the tenant |
+| Dead letters | Rows that cannot be loaded are saved with the reason |
+| Explainable scoring | Signals, market, size and recency each add or subtract a stated number of points |
 
 ### Endpoints
 
-All requests need the headers `X-Tenant-Id` and `X-Api-Key`.
+All requests need `X-Tenant-Id` and `X-Api-Key`.
 
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/api/v3/gtm/ingest` | POST | Load a batch (up to 500 records) from one source |
-| `/api/v3/gtm/call-list` | GET | Ranked accounts with reasons. `?recommendation=call_today` (default), `coordinate`, `wait` or `nurture`, plus `?limit=` |
+| `/api/v3/gtm/call-list` | GET | Ranked accounts with reasons: `?recommendation=call_today` (default), `coordinate`, `wait` or `nurture`, plus `?limit=` |
 | `/api/v3/gtm/accounts/{id}` | GET | One account with every source record that fed it |
 | `/api/v3/gtm/duplicates` | GET | Near-matches waiting for human review |
 | `/api/v3/gtm/dead-letters` | GET | Rejected rows with the reason |
@@ -57,156 +188,43 @@ All requests need the headers `X-Tenant-Id` and `X-Api-Key`.
 | Raised funding recently | +15 |
 | No public trust center | +10 |
 | Based in a core European market | +15 |
-| 20–500 employees | +15 |
+| 20 to 500 employees | +15 |
 | Never contacted | +5 |
 | No contact for 30+ days | +5 |
-| Touched in the last 7 days | −25 |
+| Touched in the last 7 days | -25 |
 
-Recommendation: `coordinate` if two or more reps have touched the account, `wait` if touched in the last 7 days, `call_today` if the score is 50 or more, otherwise `nurture`. Unknown signals are stored but score nothing. The weights are my assumptions for a compliance-software sales team, not data from any real company.
+Recommendation: `coordinate` if two or more reps touched the account, `wait` if touched in the last 7 days, `call_today` if the score is 50 or more, otherwise `nurture`. The weights are my assumptions, not data from any real company.
 
 ### Measured result
 
-Duplicate detection was checked against a hand-labeled fixture of 21 records covering 9 true company pairs, including typos, accents, `&` vs `and`, www and email-only domains, same names in different countries, and look-alike names.
+Duplicate detection was checked against a hand-labeled fixture of 21 records covering 9 true company pairs.
 
 | Metric | Result |
 |---|---|
 | Precision | **1.00** (no wrong merges) |
 | Recall | **0.89** (8 of 9 true pairs found) |
 
-The one miss is "International Business Machines" vs "IBM Corp", which no name-based method can know. It is left in the fixture on purpose. Run the check yourself with `python -m pytest tests/test_gtm_resolver.py -s`.
+The one miss, "International Business Machines" vs "IBM Corp", is left in on purpose: no name-based method can know it. Run it with `python -m pytest tests/test_gtm_resolver.py -s`.
 
-### Run it yourself (4 prompts)
+### Limits
 
-These work in GitHub Codespaces or any machine with Python 3.12+ and Docker. Run them from the repo root.
-
-**Prompt 1: install and run the tests (no database needed)**
-
-```bash
-pip install -r requirements.txt pytest
-python -m pytest tests/test_gtm_resolver.py tests/test_gtm_api.py -q
-```
-
-Expect `15 passed`. The API tests use an in-memory SQLite database.
-
-**Prompt 2: start Postgres and the API**
-
-```bash
-docker compose up -d db redis
-export DATABASE_URL=postgresql://incident:incident@localhost:5432/incident
-export REDIS_URL=redis://localhost:6379/0
-PYTHONPATH=. python -m alembic upgrade head
-PYTHONPATH=. python -m uvicorn api.app:app --port 8000
-```
-
-Leave this running and open a second terminal. No Docker? Create a free Postgres on Neon and set `DATABASE_URL` to its connection string instead.
-
-**Prompt 3: load messy data from two reps**
-
-```bash
-H='-H X-Tenant-Id:demo_corp -H X-Api-Key:demo-key-123 -H Content-Type:application/json'
-D45=$(date -u -d '45 days ago' +%FT%TZ); D40=$(date -u -d '40 days ago' +%FT%TZ)
-
-curl -s -X POST localhost:8000/api/v3/gtm/ingest $H -d '{"source":"anna_sheet","records":[
- {"source_record_id":"1","company_name":"Acme GmbH","website":"https://www.acme.de","country":"DE","employee_count":120,"owner":"anna","signals":["hiring_security_role"],"last_touch_at":"'$D45'"},
- {"source_record_id":"2","company_name":"Orbit Security","website":"orbitsec.com","country":"FR","employee_count":80,"signals":["hiring_security_role","recent_funding"]},
- {"source_record_id":"3","company_name":"Stripe","website":"stripe.com","country":"US","employee_count":4000}]}' | python -m json.tool
-
-curl -s -X POST localhost:8000/api/v3/gtm/ingest $H -d '{"source":"raj_hubspot","records":[
- {"source_record_id":"991","company_name":"ACME","contact_email":"cto@acme.de","owner":"raj","signals":["customer_asked_for_certification"],"last_touch_at":"'$D40'"},
- {"source_record_id":"992","company_name":"Helio Labs","website":"heliolabs.io","country":"Netherlands","employee_count":60,"signals":["customer_asked_for_certification"]},
- {"source_record_id":"993","company_name":"Stripes","website":"stripes.com","country":"US"},
- {"source_record_id":"994","company_name":"---"}]}' | python -m json.tool
-```
-
-Expected: the first batch creates 3 accounts. The second merges 1 (ACME into Acme GmbH by domain), creates 2, flags 1 for review (Stripes) and rejects 1 (`---`).
-
-**Prompt 4: ask the system what to do**
-
-```bash
-H='-H X-Tenant-Id:demo_corp -H X-Api-Key:demo-key-123'
-curl -s "localhost:8000/api/v3/gtm/call-list" $H | python -m json.tool
-curl -s "localhost:8000/api/v3/gtm/call-list?recommendation=coordinate" $H | python -m json.tool
-curl -s "localhost:8000/api/v3/gtm/accounts/1" $H | python -m json.tool
-curl -s "localhost:8000/api/v3/gtm/duplicates" $H | python -m json.tool
-curl -s "localhost:8000/api/v3/gtm/dead-letters" $H | python -m json.tool
-```
-
-Expected:
-
-- **Call list:** Orbit Security (75) first, then Helio Labs (65), each with its reasons.
-- **Coordinate list:** Acme GmbH (90), with the reason "2 reps have touched this account (anna, raj): agree who calls before anyone does".
-- **Account detail:** both source records, `anna_sheet` and `raj_hubspot`, under Acme.
-- **Duplicates:** Stripes, with Stripe as the possible match.
-- **Dead letters:** the `---` row and why it was rejected.
-
-### How it's built
-
-```
-POST /ingest
-   │  for each record
-   ▼
-normalize (domain, name, country)
-   │
-   ▼
-resolve ── same domain? ─────────────► merge into that account
-   │        similar name, same country,
-   │        no conflicting domain? ───► merge by name
-   │        close but risky? ─────────► new account + flagged for review
-   ▼
-merge fields (owners, signals, latest touch) ── keep raw record with its source
-   │
-   ▼
-GET /call-list  → score on read (so "days since last touch" is always current)
-```
-
-| File | Role |
-|---|---|
-| `backend/gtm/normalize.py` | Pure functions that turn messy values into comparable keys |
-| `backend/gtm/resolver.py` | Pure entity resolution, easy to test with no database |
-| `backend/gtm/scoring.py` | Pure scoring with an explanation for every point |
-| `backend/gtm/service.py` | Batch ingest: resolve, merge, keep lineage, dead-letter bad rows |
-| `backend/gtm/router.py` | FastAPI routes and tenant auth |
-| `backend/gtm/models.py` | `gtm_accounts`, `gtm_raw_records`, `gtm_dead_letters` |
-| `migrations/versions/0002_gtm.py` | Alembic migration for the three tables |
-
-### Deploying the GTM API
-
-The GTM routes need Postgres. On Vercel, set these environment variables, then redeploy:
-
-| Variable | Value |
-|---|---|
-| `DATABASE_URL` | A Postgres connection string (for example a Neon pooled string) |
-| `TENANT_KEYS` | JSON of tenant to key, for example `{"my_tenant":"a-long-random-key"}` |
-
-Run `PYTHONPATH=. python -m alembic upgrade head` once against that database to create the tables. Without a database, the app still starts and serves the v1 dashboard, and the GTM routes are not usable. Use your own `TENANT_KEYS` in any deployment: the `demo-key-123` style keys below are public.
-
-### Limits (stated honestly)
-
-- **Scale.** Each batch loads a tenant's accounts into memory to match against. That is fine for thousands of accounts; beyond that, add a `pg_trgm` index.
-- **Late links.** If two existing accounts later turn out to be the same company, they are not auto-merged; they surface for review.
-- **Removing signals.** Re-ingesting a record can add or update signals but not remove them.
-- **Scoring is rule-based.** The weights are assumptions, so tune them against real won and lost deals before trusting them.
-- **No external data sources yet.** Signals arrive with the records. Pulling them from public sources (job boards, funding news) is the next step.
-- **Scoring on read.** It is recomputed on every read for freshness, which is simple but linear in account count.
+- Each batch loads a tenant's accounts into memory; beyond thousands of accounts, add a `pg_trgm` index.
+- Two existing accounts that later turn out to be the same company are not auto-merged.
+- Re-ingesting can add or update signals but not remove them.
+- Signals arrive with the records; there is no external data pulling yet.
+- Scoring is recomputed on every read, which is simple but linear in account count.
 
 ---
 
-## Part 2: Incident IQ (original project)
+## Part 3: Incident IQ (original project)
 
 **Live demo:** https://incident-iq-drab.vercel.app/dashboard
-**API base:** https://incident-iq-drab.vercel.app
 
-### What is this?
+A small multi-tenant API and dashboard that takes raw error logs and returns a likely root cause, a confidence score and remediation steps.
 
-Incident IQ is a small multi-tenant API + dashboard that takes raw error logs and returns a likely root cause, a confidence score, and concrete remediation steps, instead of just telling you *that* something broke, like most monitoring tools do.
+### How it works
 
-You paste in a service name, an error message, and a log excerpt. It matches the log content against a set of known incident patterns (database exhaustion, OOM, CPU spikes, API gateway failures, disk/network issues) and returns a structured response with a reasoning trace showing *why* it reached that conclusion.
-
-### How it actually works
-
-This is a **rule-based pattern-matching engine**, not a hosted ML model. It was originally built as a submission for an NVIDIA Nemotron hackathon challenge, with a LoRA fine-tuning script included in the repo (`train_lora.py`), but the live, deployed API does **not** call that model. The deployed version runs entirely on deterministic keyword/pattern matching (see `IncidentReasoningEngine` in `api/app.py`), which is fast, has zero inference cost, and is honest about its limits.
-
-The `reasoning_trace` field in every API response shows the exact matching logic that fired, so the "reasoning" is inspectable rather than a black box.
+It is a **rule-based pattern-matching engine**, not a hosted ML model. It began as an NVIDIA Nemotron hackathon submission with a LoRA fine-tuning script (`train_lora.py`), but the deployed API does not call that model. It matches log content against known incident patterns (database exhaustion, OOM, CPU spikes, gateway failures, disk and network issues). The `reasoning_trace` field in every response shows which logic fired, so the reasoning is inspectable.
 
 ### Two runtimes, one codebase
 
@@ -223,119 +241,4 @@ See `docs/ARCHITECTURE.md` for the v2 request flow, failure modes, observability
 |---|---|---|
 | `/dashboard` | GET | Visual UI |
 | `/health` | GET | Health check |
-| `/api/analyze` | POST | Submit an incident for analysis |
-| `/api/tenant/incidents` | GET | Fetch incident history for a tenant |
-
-### Example request
-
-```bash
-curl -X POST https://incident-iq-drab.vercel.app/api/analyze \
-  -H "Content-Type: application/json" \
-  -d '{
-    "alert": {
-      "service": "payment-api",
-      "error": "Connection timeout",
-      "logs": "ERROR: database connection pool exhausted. Active connections: 50/50.",
-      "metrics": {"latency_ms": 5000}
-    },
-    "tenant_id": "demo_corp",
-    "api_key": "demo-key-123"
-  }'
-```
-
-Response:
-
-```json
-{
-  "incident_id": "inc-1748123456",
-  "root_cause": "Database connection pool exhaustion",
-  "confidence_score": 0.85,
-  "remediation_steps": [
-    "Increase max_connections in database config",
-    "Add connection timeout and retry logic",
-    "Review code for connection leaks",
-    "Implement connection pooling monitoring"
-  ],
-  "reasoning_trace": [
-    "Found database/connection-pool keyword",
-    "Matched connection pool exhaustion pattern"
-  ],
-  "affected_services": ["payment-api"],
-  "severity": "high",
-  "analysis_time_ms": 45,
-  "tenant": "demo_corp"
-}
-```
-
-### Demo credentials
-
-These are public demo keys for the dashboard only. Never reuse them for real data.
-
-| Tenant | API Key |
-|---|---|
-| `demo_corp` | `demo-key-123` |
-| `test_inc` | `test-key-456` |
-
-### Multi-tenancy
-
-Each tenant has its own API key and isolated incident history. There's no cross-tenant data access: a request with `test_inc`'s tenant ID and `demo_corp`'s API key is rejected.
-
-**Storage note:** in the v1 Vercel build, incident history is held in memory and resets on every cold start or redeploy. The v2 routes store incidents in Postgres with pgvector similarity search.
-
-### Detected incident patterns
-
-| Pattern | Confidence | Severity |
-|---|---|---|
-| Database connection pool exhaustion | 85% | High |
-| Out of memory / heap exhaustion | 90% | Critical |
-| Service timeout / high latency | 75% | Medium |
-| API gateway / 502 errors | 70% | High |
-| Disk space exhaustion | 80% | High |
-| Network connectivity failure | 75% | High |
-| CPU overload / throttling | 70% | Medium |
-| Unmatched, flagged for manual review | 40% | Medium |
-
----
-
-## Tech stack
-
-- **Backend:** Python, FastAPI, SQLAlchemy, Alembic
-- **Data:** PostgreSQL (pgvector for v2 similarity search), Redis (optional cache)
-- **Logging and quality:** structlog JSON logs, pytest, GitHub Actions CI
-- **Deployment:** Vercel (serverless via Mangum), Docker, Kubernetes manifests in `k8s/`
-- **Frontend:** vanilla HTML/CSS/JS, no framework
-
-## Project structure
-
-```
-incident-iq/
-├── api/
-│   └── app.py                  # FastAPI app, v1 routes, dashboard and reasoning engine
-├── backend/
-│   ├── core.py                 # settings, DB, cache, logging shared by v2 and v3
-│   ├── router.py               # /api/v2 incident routes
-│   └── gtm/                    # /api/v3/gtm account resolution (normalize, resolver, scoring, service, router, models)
-├── migrations/versions/        # 0001 incidents, 0002 GTM tables
-├── tests/                      # test_v2.py, test_gtm_resolver.py, test_gtm_api.py
-├── eval/ and scripts/          # labeled incident set and benchmark script
-├── k8s/ and docs/              # Kubernetes manifests, ARCHITECTURE.md
-├── data/synthetic_generator.py # synthetic data for the LoRA experiment
-├── train_lora.py               # LoRA script (Colab), not called by the live API
-├── requirements.txt
-├── vercel.json
-└── README.md
-```
-
-**Why is the dashboard HTML embedded in `app.py`?** It was originally a separate static file, but Vercel's Python bundler did not reliably package sibling files from `api/`, which caused runtime crashes. One self-contained file deploys reliably.
-
-## Deployment
-
-Auto-deploys to Vercel on every push to `main`.
-
-## License
-
-MIT, free to use, modify, and build on.
-
----
-
-Built by [k-kj0](https://github.com/k-kj0).
+| `/api/analyze` | POST | Submit an incident for
