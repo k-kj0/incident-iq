@@ -241,4 +241,93 @@ See `docs/ARCHITECTURE.md` for the v2 request flow, failure modes, observability
 |---|---|---|
 | `/dashboard` | GET | Visual UI |
 | `/health` | GET | Health check |
-| `/api/analyze` | POST | Submit an incident for
+| `/api/analyze` | POST | Submit an incident for analysis |
+| `/api/tenant/incidents` | GET | Incident history for a tenant |
+
+### Example request
+
+```bash
+curl -X POST https://incident-iq-drab.vercel.app/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alert": {
+      "service": "payment-api",
+      "error": "Connection timeout",
+      "logs": "ERROR: database connection pool exhausted. Active connections: 50/50.",
+      "metrics": {"latency_ms": 5000}
+    },
+    "tenant_id": "demo_corp",
+    "api_key": "demo-key-123"
+  }'
+```
+
+### Demo credentials
+
+Public demo keys for the dashboard only. Never reuse them for real data.
+
+| Tenant | API Key |
+|---|---|
+| `demo_corp` | `demo-key-123` |
+| `test_inc` | `test-key-456` |
+
+Each tenant has isolated data. A request with `test_inc`'s tenant ID and `demo_corp`'s key is rejected. Use your own `TENANT_KEYS` in any real deployment.
+
+---
+
+## Tech stack
+
+- **Backend:** Python, FastAPI, SQLAlchemy, Alembic, pdfplumber
+- **Data:** PostgreSQL (pgvector for v2 similarity search), Redis (optional cache)
+- **AI:** Gemini (embeddings in v2; optional extraction in QuoteLens) with outputs validated before display
+- **Logging and quality:** structlog JSON logs, pytest, GitHub Actions CI
+- **Deployment:** Vercel (serverless via Mangum), Docker, Kubernetes manifests in `k8s/`
+- **Frontend:** vanilla HTML/CSS/JS, no framework
+
+## Tests
+
+```bash
+python -m pytest -q
+```
+
+`tests/test_quotes.py` (11 tests) and the GTM tests (15) run without a database. `tests/test_v2.py` needs `DATABASE_URL` pointing at Postgres, which CI provides.
+
+## Project structure
+
+```
+incident-iq/
+├── api/app.py                  # FastAPI app, v1 routes, dashboard and reasoning engine
+├── backend/
+│   ├── core.py                 # settings, DB, cache, logging shared by v2 and v3
+│   ├── router.py               # /api/v2 incident routes
+│   ├── gtm/                    # /api/v3/gtm: normalize, resolver, scoring, service, router, models
+│   └── quotes/                 # /api/v3/quotes
+│       ├── money.py            #   parse "$1M", "$3 million", "$5,000"
+│       ├── coverage.py         #   map carrier wording to one standard coverage name
+│       ├── extract.py          #   rule-based extraction with citations
+│       ├── llm_extract.py      #   optional Gemini extraction; unsupported claims rejected
+│       ├── verify.py           #   citation checker
+│       ├── compare.py          #   side-by-side diff and gap flags
+│       ├── service.py          #   PDF text reading and the analyze pipeline
+│       ├── router.py           #   FastAPI routes and tenant auth
+│       ├── models.py           #   quote_documents table
+│       └── ui.py               #   demo page
+├── migrations/versions/        # 0001 incidents, 0002 GTM, 0003 quotes
+├── tests/                      # test_v2.py, test_gtm_*.py, test_quotes.py
+├── eval/ and scripts/          # labeled incident set and benchmark script
+├── k8s/ and docs/              # Kubernetes manifests, ARCHITECTURE.md
+├── requirements.txt            # Vercel / app dependencies
+├── requirements-backend.txt    # Postgres, pgvector, pdfplumber, pytest
+└── README.md
+```
+
+## Deployment
+
+Auto-deploys to Vercel on every push to `main`. The v2 and v3 routes need Postgres: set `DATABASE_URL` and `TENANT_KEYS`, then run `PYTHONPATH=. python -m alembic upgrade head` once. PDF upload needs `pdfplumber` in the deployed environment; without it that route returns 501 and the page-text API still works.
+
+## License
+
+MIT, free to use, modify, and build on.
+
+---
+
+Built by [k-kj0](https://github.com/k-kj0).
