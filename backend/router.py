@@ -54,6 +54,7 @@ def build_router(analyze_fn) -> APIRouter:
         t0 = time.perf_counter()
         result = analyze_fn(req.alert.model_dump())
         result["analysis_time_ms"] = round((time.perf_counter() - t0) * 1000, 3)  # real, measured
+        result.setdefault("incident_id", f"inc-{uuid.uuid4().hex[:10]}")
         vec = embed(f"{req.alert.service}\n{req.alert.error}\n{req.alert.logs}")
         db.add(
             Incident(
